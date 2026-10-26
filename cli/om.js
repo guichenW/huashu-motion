@@ -14,6 +14,7 @@ const VERSION = JSON.parse(readFileSync(join(PKG, 'package.json'), 'utf8')).vers
 
 const HELP = `huashu-motion ${VERSION} — motion graphics made by your coding agent, edited by pointing at the frame.
 
+  om grab <url|folder> [dir]   the product's real material into <dir>/materials/: page screenshots, logo, images, its colours and type (a URL), or the project's own screenshots, icons, media and stylesheet colours (a folder)
   om new <dir> [--template t]   start a project (om templates lists them)
   om templates                  starter projects and what each is good for
   om demo [dir]                 copy the showcase film and open it in the studio
@@ -42,6 +43,7 @@ const HELP = `huashu-motion ${VERSION} — motion graphics made by your coding a
   om learn harvest [dir]        after a film: its studio comments and edits, and what is worth keeping
   om learn add "…" --kind preference|observed|verified --topics a,b --evidence "…" [--do "…"]   keep one finding
   om samples [build [ids…]]      the real-instrument pack (piano, strings, drums…; CC0/CC-BY, ~55 MB): status, or build it once
+  om share [dir] [--from s] [--to s]   after a render: a ≤10 MB GIF (opening + end frame) and share.md (post, README header)
   om export html [dir] [--out folder] [--title …] [--desc …]   share page (player, Remix prompt, source.zip) for any static host
   om doctor                     check Node, FFmpeg and the renderer
 
@@ -257,7 +259,7 @@ async function main() {
         prepare = async (page) => { let rewrote = false; log((await sound(project, { page, onWrite: () => { rewrote = true; } }, log)).split('\n')[0]); return rewrote; };
       } else if (!flags.transparent && !flags.silent) log('warning  no soundtrack — run `om sound` first (or pass --silent if the film is meant to be silent)');
       process.stderr.write('rendering in your Chrome…\n');
-      const file = await render(project, { engine: flags.engine, prepare, video: flags.video === true ? undefined : flags.video, workers: flags.workers && Number(flags.workers), frameFormat: flags.frames === true ? undefined : flags.frames, tune: tuning(flags), allowPageErrors: !!flags['allow-page-errors'], format: flags.format, transparent: !!flags.transparent, blur: flags.blur === true ? true : flags.blur && Number(flags.blur), fps: flags.fps && Number(flags.fps), out: flags.out && resolve(flags.out), onLog: flags.verbose ? (l) => process.stderr.write(l + '\n') : () => {}, onWarn: (m) => process.stderr.write(`warning  ${m}\n`) });
+      const file = await render(project, { engine: flags.engine, prepare, video: flags.video === true ? undefined : flags.video, workers: flags.workers && Number(flags.workers), frameFormat: flags.frames === true ? undefined : flags.frames, tune: tuning(flags), allowPageErrors: !!flags['allow-page-errors'], format: flags.format, transparent: !!flags.transparent, blur: flags.blur === true ? true : flags.blur && Number(flags.blur), fps: flags.fps && Number(flags.fps), out: flags.out && resolve(flags.out), onLog: flags.verbose ? (l) => process.stderr.write(l + '\n') : () => {}, onNote: log, onWarn: (m) => process.stderr.write(`warning  ${m}\n`) });
       return out(file);
     }
 
@@ -328,6 +330,17 @@ async function main() {
       return out(await voice(openProject(pos[0] || '.'), flags, (l) => process.stderr.write(l + '\n')));
     }
 
+    case 'grab': {
+      if (!pos[0]) throw new OmError('usage: om grab <url|folder> [dir]   (dir: the film project, default .)');
+      const { grab } = await import('./lib/grab.js');
+      const root = resolve(pos[1] || '.');
+      mkdirSync(root, { recursive: true });
+      return out(await grab(root, pos[0], { maxShots: flags.shots ? Number(flags.shots) : 8 }));
+    }
+    case 'share': {
+      const { share } = await import('./lib/share.js');
+      return out(share(openProject(pos[0] || '.'), { from: flags.from ?? 0, to: flags.to ?? null, video: flags.video ? resolve(flags.video) : null }));
+    }
     case 'export': {
       if (pos[0] !== 'html') throw new OmError('usage: om export html [dir] [--out folder]   (video: om render)');
       const { exportHtml } = await import('./lib/export.js');

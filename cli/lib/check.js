@@ -112,6 +112,14 @@ export function checkSource(project) {
     warned.add(first.toLowerCase());
     add('warning', 'font-not-shipped', `font-family "${first}" has no @font-face in the film — it renders only where that font is installed (om fonts add)`, i);
   }
+  // A film about a product is made of the product: its logo as a file, its real interface, its pictures. A composition
+  // that loads no image, video or logo file at all drew everything itself (the grey-box UI of one-line films, 2026-10).
+  const media = [...html.matchAll(/(?:src|poster|href)\s*=\s*["'`]([^"'`]+\.(?:png|jpe?g|webp|gif|svg|avif|mp4|mov|webm))|url\(\s*["']?([^"')]+\.(?:png|jpe?g|webp|gif|svg|avif))|["'`]((?:\.\/)?(?:assets|materials|media|img|images)\/[^"'`]+\.(?:png|jpe?g|webp|gif|svg|avif|mp4|mov|webm))/gi)]
+    .map((m) => m[1] || m[2] || m[3]).filter((u) => u && !/^data:|vendor\/|om-/.test(u));
+  for (const m of html.matchAll(/placehold\.co|placeholder\.com|via\.placeholder|dummyimage\.com|picsum\.photos|placekitten|fakeimg\.pl|\blorem ipsum\b/gi)) add('warning', 'placeholder', `"${m[0]}" is a placeholder — use real content: the product's own images and text, a real one found online, or an openly licensed image (source in materials.md)`, m.index);
+  if (!media.length) add('warning', 'no-real-material', 'the film loads no image, video or logo file — if it is about a product, it is drawing the product instead of showing it. Collect the real material first (om grab <url|folder>) and build from it: the logo file, real screenshots or recordings, a rebuild only traced over a capture (SKILL.md step 1)');
+  else if (media.every((u) => /icon|logo|favicon|wordmark|avatar/i.test(u))) add('warning', 'only-logo', `the only files the film loads are icons or logos (${[...new Set(media)].slice(0, 3).join(', ')}) — the interface and pictures are drawn, not shown. Use real screenshots or recordings of the product (om grab), or rebuild only over a capture`);
+  else if (!existsSync(join(project.root, 'materials.md'))) add('warning', 'no-materials-list', 'no materials.md — list what the film is made of and where each piece came from (om grab writes it)');
   return found;
 }
 
@@ -153,6 +161,8 @@ const LAYOUT = (t) => `(() => {
   const seen = new Set();
   for (let n; (n = walker.nextNode());) {
     const el = n.parentElement;
+    // whitespace between tags is not text: it would judge the parent (or body) by all its children's text, hidden ones included
+    if (!n.nodeValue.trim()) continue;
     // single letters are kinetic type (split, stacked, flown in): judged as a word, not one by one
     if (!el || seen.has(el) || el.textContent.trim().length < 3 || /^(SCRIPT|STYLE|NOSCRIPT|TITLE)$/.test(el.tagName)) continue;
     seen.add(el);
@@ -246,6 +256,9 @@ export async function checkPage(project, { samples = 24, fps = 30, onLog = () =>
       }
     }
     for (const [img, at, what] of [[firstShot, 0, 'first'], [lastShot, last, 'last']]) if (img && flat(img)) add('warning', 'blank-frame', `the ${what} frame is a single flat colour — start moving / end on the brand`, at);
+    // the signature: the film is now at its last frame, where the engine has chosen a corner for it
+    const sig = await film.evaluate('window.__omEngine.signature ? window.__omEngine.signature() : null');
+    if (sig && sig.shown && !sig.shown.clear) add('warning', 'signature-covers', `the "Made with huashu-motion" signature finds no free corner in the last 1.2s and sits ${sig.shown.corner} over the film — leave one corner of the end frame clear, pin it with data-om-signature="top-left" (or another corner) on the root, or switch it off with data-om-signature="off"`, last);
     onLog(`sampled  ${list.length} frames`);
 
     // the same frame reached two ways: after everything above, and straight away in a fresh page
