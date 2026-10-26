@@ -129,6 +129,8 @@ How it composes, so you can steer it: scene labels are sections and each starts 
 
 ## Levels
 
+For a user-supplied recording, replacing captions, aligning sentence boundaries or combining voice with a generated/external bed, read [narration-sync.md](narration-sync.md). The local helper preserves the recording, measures speech-window loudness and verifies the actual AAC export; a normalized WAV alone is insufficient evidence of delivery peak level.
+
 Alone: music at −18 LUFS with effects on top, master at −14 LUFS integrated (X, Reels and 小红书 normalise near there), peaks limited to −1.5 dBFS, sub-30 Hz removed. Under narration the music sits ~12 LU under the measured voice, ducks under every word and is carved around 2 kHz. For a web page or a deck, −16 is calmer.
 
 Check what you can't hear:

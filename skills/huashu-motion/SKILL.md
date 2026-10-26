@@ -1,6 +1,6 @@
 ---
 name: huashu-motion
-description: "Motion graphics, launch videos and explainers as editable code. A director picks the motion language for your product; you point at frames to change them. 动画、发布片、解说视频，指着画面改。"
+description: "Motion graphics, launch videos and explainers as editable code, including supplied narration, music mixing and synchronized burned-in captions. 动画、发布片、产品解说视频；支持自带配音、音轨混合、对轨及字幕联动，指着画面改。"
 metadata:
   author: "花叔"
   homepage: "https://github.com/alchaincyf"
@@ -15,6 +15,8 @@ You are the director, designer and animator. The film is code: one composition (
 Aim for something people want to share — a film that could only be about this product, not a slide deck with easing and not the house style every agent produces. Working code is the starting line; the finished frames are the bar.
 
 ## The tool
+
+On this Windows installation, use the local PowerShell entry point `& "<this skill's folder>/bin/om.cmd" <command> ...` for the commands below. It runs the matching full runtime in `~/.codex/tools/huashu-motion` (version 0.1.1, upstream commit `5f2608c2e12abcf518f74dde86093b19f7f88603`). The extensionless `bin/om` is a POSIX shell script; use `om.cmd` rather than invoking it directly or downloading another runtime with `npx`.
 
 ```sh
 OM="<this skill's folder>/bin/om"      # or: npx huashu-motion  (same commands)
@@ -64,6 +66,10 @@ $OM undo <dir> · $OM scan <dir> · $OM doctor
 - **Sound is declared, not placed in an editor.** `OM.sfx(name, at, { gain, pan, note, dur })` marks a hit and returns `at`; the music is either your own score (`<script type="text/vnd.abc" id="om-score">`, its `!mark:name!`s landing on `scene:name` labels) or a built-in direction (`OM.music({ product, drop, ending })`); scene labels are the music's sections. `om sound` turns this into `assets/sound.wav` and `<audio id="om-sound">`; it is regenerated, never hand-edited. Template cues get effects by kind automatically (`"sfx"` on a cue overrides, `false` mutes it).
 - One paused GSAP timeline in `window.__timelines[<composition-id>]`. Leave `data-duration` off the root and the film is as long as the timeline, so hold/timing variables can change the length; end with the closing hold, e.g. `tl.to({}, { duration: V.endHold })`. Set `data-duration` only when the length is fixed by delivery.
 - Everything is a function of time: no `Date.now()`, no unseeded random, no network. Fonts and libraries live in the project (`vendor/`, `assets/`). New projects already have `vendor/om.js` (include it with a script tag to use `OM.*`); a frame-by-frame canvas engine plugs in with `OM.clock(tl, t => draw(t), duration)`. Springs are `ease: OM.spring(0.1)` (closed form, a pure function of time); one camera through one world is `OM.camera('#world')` with `cam.to(tl, at, { fit: '#el', pad, duration })`; randomness is `OM.random(seed)`.
+
+## Supplied narration, mixing and synchronized captions
+
+For user-supplied audio, combining narration with music/effects, replacing captions, or tight audio/caption sync, read [narration-sync.md](references/narration-sync.md) before the sound/export steps. Use the local scripts/narration.mjs workflow: one reviewed timeline drives PCM clips, caption frames and ducking cues; check the encoded delivery as well as the HTML. Keep the original recording and a single delivery caption layer. This extension preserves the pinned upstream runtime and does not require voice in a music-only film.
 
 ## Handling a comment
 

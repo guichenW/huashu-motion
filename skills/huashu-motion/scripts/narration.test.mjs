@@ -1,0 +1,66 @@
+// Integration regression: isolated synthetic signal, real Chrome render and AAC export.
+import fs from 'node:fs/promises';
+import path from 'node:path';
+import os from 'node:os';
+import assert from 'node:assert/strict';
+import {spawnSync} from 'node:child_process';
+import {fileURLToPath} from 'node:url';
+const here=path.dirname(fileURLToPath(import.meta.url)),cli=path.join(here,'narration.mjs');
+const om=process.env.HUASHU_MOTION_CLI||path.join(os.homedir(),'.codex/tools/huashu-motion/cli/om.js');
+const runtime=path.resolve(path.dirname(om),'..');
+const root=await fs.mkdtemp(path.join(os.tmpdir(),'视频配音回归-'));
+const call=(exe,args,expected=0)=>{
+ const r=spawnSync(exe,args,{encoding:'utf8',maxBuffer:32<<20});
+ assert.equal(r.status,expected,r.stderr||r.stdout);return r.stdout;
+};
+const node=(args,expected=0)=>call(process.execPath,[cli,...args],expected);
+const reject=(args,message)=>{
+ const r=spawnSync(process.execPath,[cli,...args],{encoding:'utf8',maxBuffer:32<<20});
+ assert.equal(r.status,1,r.stdout);assert.match(r.stderr,message);
+};
+await fs.mkdir(path.join(root,'sources'),{recursive:true});
+await fs.mkdir(path.join(root,'assets'),{recursive:true});
+await fs.mkdir(path.join(root,'vendor'),{recursive:true});
+await fs.copyFile(path.join(runtime,'templates/blank/vendor/gsap.min.js'),path.join(root,'vendor/gsap.min.js'));
+await fs.copyFile(path.join(runtime,'runtime/om.js'),path.join(root,'vendor/om.js'));
+call('ffmpeg',['-v','error','-y','-f','lavfi','-i','sine=frequency=440:duration=2.2:sample_rate=48000','-c:a','pcm_s24le',path.join(root,'sources/input.wav')]);
+call('ffmpeg',['-v','error','-y','-f','lavfi','-i','sine=frequency=110:duration=4:sample_rate=48000','-af','volume=-22dB','-ac','2',path.join(root,'assets/sound.wav')]);
+await fs.writeFile(path.join(root,'sources/narration.txt'),'库存实时可见。\n缺货及时提醒。\n');
+const settings={sourceAudio:'sources/input.wav',duration:4,fps:30,width:960,height:540,bedAlreadyDucked:true,masterTruePeak:-4,captionRegion:{x:240,y:475,width:480,height:38},sentences:[{sourceStart:.2,sourceEnd:.7,startFrame:9},{sourceStart:1.2,sourceEnd:1.8,startFrame:70}]};
+const write=()=>fs.writeFile(path.join(root,'sources/narration.json'),JSON.stringify(settings));
+await write();
+settings.sentences[1].startFrame=10;await write();
+reject(['prepare',root],/Target clips overlap/);
+settings.sentences[1].startFrame=70;await write();
+const prepared=JSON.parse(node(['prepare',root]));assert.equal(prepared.sentences,2);
+const cues=await fs.readFile(path.join(root,'assets/voice.words.json'),'utf8');
+const html='<!doctype html><html><head><meta charset="utf-8"><script src="vendor/gsap.min.js"></script><script src="vendor/om.js"></script><script src="assets/narration-data.js"></script><script src="assets/narration-clock.js"></script><script type="application/json" id="om-cues">'+cues+'</script><style>html,body{margin:0;background:#f6f7f9;font-family:Arial,"Microsoft YaHei",sans-serif}main{width:960px;height:540px;position:relative;overflow:hidden}h1{position:absolute;left:60px;top:90px;color:#2456ad;font-size:60px}.narration-caption{position:absolute;left:40px;right:40px;top:470px;height:44px;text-align:center;font-size:28px;font-weight:700;color:#202735;white-space:nowrap}</style></head><body><main data-composition-id="inventory-test" data-width="960" data-height="540" data-duration="4" data-fps="30"><h1>库存看板</h1><div id="captions"></div><audio id="om-voice" src="assets/voice.wav" data-duration="4" data-volume="1"></audio></main><script>const tl=gsap.timeline({paused:true});tl.fromTo("h1",{x:20},{x:0,duration:1,immediateRender:false},0);NarrationSync.attach(tl,{container:"#captions"});window.__timelines["inventory-test"]=tl;</script></body></html>';
+await fs.writeFile(path.join(root,'index.html'),html);
+const sync=JSON.parse(node(['check',root]));assert.equal(sync.captionFrameChecks,14);
+const clockFile=path.join(root,'assets/narration-clock.js'),clock=await fs.readFile(clockFile,'utf8');
+await fs.writeFile(clockFile,clock.replace('Math.round(time*data.fps)','Math.floor(time*data.fps)'));
+reject(['check',root],/Caption\/subframe mismatch/);
+await fs.writeFile(clockFile,clock);
+let mix=JSON.parse(node(['mix',root]));assert.equal(mix.bedAlreadyDucked,true);
+const rendered=call(process.execPath,[om,'render',root,'--workers','2','--blur','2']);
+const picture=rendered.split(/\r?\n/).map(s=>s.trim()).filter(s=>/^(?:[A-Za-z]:[\\/]|\/).+\.mp4$/i.test(s)).at(-1);
+assert.ok(picture,'Renderer must return an explicit MP4.');
+// Simulate a changed score/bed after the picture pass. This fixture has no
+// om-score, so its renderer may intentionally leave the original bed untouched.
+call('ffmpeg',['-v','error','-y','-i',path.join(root,'assets/sound.wav'),'-af','volume=-1dB',path.join(root,'assets/revised-sound.wav')]);
+await fs.copyFile(path.join(root,'assets/revised-sound.wav'),path.join(root,'assets/sound.wav'));
+reject(['mux',root,picture,'--out','out/stale-bed.mp4'],/Run mix before mux/);
+mix=JSON.parse(node(['mix',root]));
+const final=JSON.parse(node(['mux',root,picture,'--out','out/verified.mp4']));
+assert.equal(final.captionFrameChecks,10);
+const verified=JSON.parse(node(['verify',root,'out/verified.mp4']));assert.equal(verified.verified,true);
+await fs.writeFile(path.join(root,'out/verified.srt'),'1\n00:00:00,000 --> 00:00:01,000\n重复字幕\n');
+reject(['verify',root,'out/verified.mp4'],/same-name external SRT/);
+await fs.unlink(path.join(root,'out/verified.srt'));
+settings.bedGainDb=3;await write();
+reject(['mux',root,picture,'--out','out/stale-mix.mp4'],/Run mix before mux/);
+settings.bedGainDb=0;
+settings.bedAlreadyDucked=false;await write();mix=JSON.parse(node(['mix',root]));assert.equal(mix.bedAlreadyDucked,false);
+await fs.appendFile(path.join(root,'sources/narration.txt'),'修改后的文案\n');
+reject(['mix',root],/Narration, script or timing settings changed/);
+console.log(JSON.stringify({passed:true,project:root,checks:['overlapping clips rejected','14 HTML/frame/subframe checks','blur rounding regression rejected','10 encoded subtitle edge checks','AAC loudness and peak verified','same-name SRT rejected','external BGM sidechain branch exercised','changed transcript rejected']},null,2));
