@@ -1,3 +1,10 @@
+> **guichenW 定制维护版**：在作者原版上增加用户配音混音、按句对轨、内嵌字幕及成片验证。
+> 可用分支：`codex/narration-sync`；`main` 保留上游版本，作者仓库通过 `upstream` 合并。
+> Windows Codex 安装：`scripts/install-codex.ps1`；后续更新并推送：`scripts/sync-upstream.ps1 -Push`。
+> 完整说明见 [Fork 维护与安装](skills/huashu-motion/references/fork-maintenance.md)。以下保留作者原始介绍和署名。
+
+---
+
 <div align="center">
 
 **简体中文** | [English](README.en.md)

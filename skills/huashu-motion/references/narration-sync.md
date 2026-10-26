@@ -1,6 +1,6 @@
 # 自带配音：混音、对轨与字幕联动
 
-本机扩展，适用于产品解说、用户提供 MP3/WAV、给已有动画补旁白、换字幕，以及配音与 BGM/音效合并。保持 huashu-motion 0.1.1 运行时；辅助脚本属于本 skill，不宣称是上游新增的 om 命令。
+本 Fork 扩展，适用于产品解说、用户提供 MP3/WAV、给已有动画补旁白、换字幕，以及配音与 BGM/音效合并。运行时随本 Fork 合并上游版本维护；辅助脚本属于本 skill，不宣称是上游新增的 om 命令。仓库检出中的脚本自动使用同仓库 CLI，也支持 HUASHU_MOTION_CLI 显式指定。
 
 ## 用户怎样调用
 
@@ -57,9 +57,10 @@ Node、FFmpeg/FFprobe 和已安装的 huashu-motion 运行时即可，不需要�
 本流程由 prepare 接管 voice.wav 和句级 cues；之后不再运行 om voice 覆盖这些文件，避免重置已排好的时长和句界。底音须是不含待替换旁白的独立配乐/音效轨；已有完整人声的成片不能直接当 BGM 再叠一遍旁白。
 
 ~~~powershell
-$narrationTool = "C:\Users\Administrator\.codex\skills\huashu-motion\scripts\narration.mjs"
+$skillRoot = Join-Path $env:USERPROFILE ".codex\skills\huashu-motion"
+$narrationTool = Join-Path $skillRoot "scripts\narration.mjs"
 $filmProject = "D:\视频工程\新产品"
-$motionTool = "C:\Users\Administrator\.codex\skills\huashu-motion\bin\om.cmd"
+$motionTool = Join-Path $skillRoot "bin\om.cmd"
 
 node $narrationTool prepare $filmProject
 # 按下节接入 HTML，并清理旧字幕层，再生成/更新音乐。

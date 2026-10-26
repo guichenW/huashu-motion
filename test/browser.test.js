@@ -26,5 +26,12 @@ test('browser: only a browser that is already installed is used — nothing is d
 });
 
 test('browser: version is read from --version', () => {
-  assert.equal(chromeVersion(fake('v')), '123.4.5.6');
+  // Windows cannot execute a POSIX shebang fixture. Inject only the process
+  // runner there; still verify --version arguments and the four-part parser.
+  const exe = fake('v');
+  const options = process.platform === 'win32' ? { run: (file, args) => {
+    assert.equal(file, exe); assert.deepEqual(args, ['--version']);
+    return { stdout: 'Fake Chrome 123.4.5.6\n' };
+  } } : undefined;
+  assert.equal(chromeVersion(exe, options), '123.4.5.6');
 });

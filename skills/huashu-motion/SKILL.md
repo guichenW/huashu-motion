@@ -16,7 +16,7 @@ Aim for something people want to share — a film that could only be about this 
 
 ## The tool
 
-On this Windows installation, use the local PowerShell entry point `& "<this skill's folder>/bin/om.cmd" <command> ...` for the commands below. It runs the matching full runtime in `~/.codex/tools/huashu-motion` (version 0.1.1, upstream commit `5f2608c2e12abcf518f74dde86093b19f7f88603`). The extensionless `bin/om` is a POSIX shell script; use `om.cmd` rather than invoking it directly or downloading another runtime with `npx`.
+On Windows, use `& "<this skill's folder>/bin/om.cmd" <command> ...`. This fork keeps the CLI and skill together; the launcher uses the checkout's CLI, then the full runtime at `~/.codex/tools/huashu-motion`. `HUASHU_MOTION_CLI` may explicitly select another CLI. The extensionless `bin/om` is a POSIX shell script. For fork updates and the Windows Codex installation, read [fork-maintenance.md](references/fork-maintenance.md).
 
 ```sh
 OM="<this skill's folder>/bin/om"      # or: npx huashu-motion  (same commands)
@@ -84,7 +84,7 @@ $OM undo <dir> · $OM scan <dir> · $OM doctor
 
 ## Supplied narration, mixing and synchronized captions
 
-For user-supplied audio, combining narration with music/effects, replacing captions, or tight audio/caption sync, read [narration-sync.md](references/narration-sync.md) before the sound/export steps. Use the local scripts/narration.mjs workflow: one reviewed timeline drives PCM clips, caption frames and ducking cues; check the encoded delivery as well as the HTML. Keep the original recording and a single delivery caption layer. This extension preserves the pinned upstream runtime and does not require voice in a music-only film.
+For user-supplied audio, combining narration with music/effects, replacing captions, or tight audio/caption sync, read [narration-sync.md](references/narration-sync.md) before the sound/export steps. Use scripts/narration.mjs: one reviewed timeline drives PCM clips, caption frames and ducking cues; check the encoded delivery as well as the HTML. Keep the original recording and a single delivery caption layer. These helpers belong to this fork; music-only films do not require narration.
 
 ## Handling a comment
 
@@ -127,13 +127,8 @@ Every film teaches something; `om learn` carries it to the next one. Experience 
 
 ## 版本检查
 
-这一节让用户及时知道本 skill 有没有新版本。它只读取远程仓库的版本标签，不下载文件、不上传数据、不修改 skill 本身；唯一会写的是本目录的 `.last-update-check`，用来记住上次检查的日期。
+检查作者上游的新版本；此 Fork 的定制分支和安装方式见 [fork-maintenance.md](references/fork-maintenance.md)。用户明确要求检查时直接查询；日常使用可读本技能目录的 .last-update-check，成功不足 30 天或失败不足 7 天时跳过。off 表示关闭日常检查。
 
-使用本 skill 时先读 `.last-update-check`，内容是一行日期加结果，如 `2026-10-13 ok`（只有日期的旧格式按 `ok` 算）。以下情况跳过本节：内容是 `off`（用户关掉了检查）；上次 `ok` 不足 30 天；上次 `failed` 不足 7 天；本目录不是 git 克隆。
+完整检出中使用 git rev-parse --show-toplevel 找到仓库根目录，再运行 git ls-remote --tags --refs --sort=-v:refname upstream 'v*'；没有 upstream 时直接查询 https://github.com/alchaincyf/huashu-motion.git。只比较上游标签与 metadata.version，不自动合并。成功或失败后分别记录当天日期加 ok 或 failed。
 
-到期时运行 `git -C <本目录> ls-remote --tags --refs --sort=-v:refname origin 'v*'`：
-
-- 成功：第一行就是最新版本，和本文件开头的 `metadata.version` 比较，然后写入 `<今天> ok`。远程更高时，先完成用户的任务，结束时告诉用户：「huashu-motion 有新版本 vX.Y.Z，更新说明见 https://github.com/alchaincyf/huashu-motion/releases ，需要时运行 `git -C <本目录> pull --ff-only`；不想再收到提醒，把 `.last-update-check` 的内容改成 `off`」。版本相同或没有标签就不用提。
-- 失败（断网、沙箱不允许联网）：写入 `<今天> failed`，7 天后再试。
-
-是否更新由用户决定，不要自动执行更新。
+发现新版本时告知版本和官方 release 链接。用户授权更新后，在 codex/narration-sync 分支通过仓库 scripts/sync-upstream.ps1 合并并验证；仅在用户授权远端推送时加 -Push。不对定制分支执行 git pull upstream main --ff-only，也不覆盖本 Fork 的配音扩展。

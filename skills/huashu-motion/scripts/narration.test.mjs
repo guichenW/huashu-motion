@@ -6,9 +6,12 @@ import assert from 'node:assert/strict';
 import {spawnSync} from 'node:child_process';
 import {fileURLToPath} from 'node:url';
 const here=path.dirname(fileURLToPath(import.meta.url)),cli=path.join(here,'narration.mjs');
-const om=process.env.HUASHU_MOTION_CLI||path.join(os.homedir(),'.codex/tools/huashu-motion/cli/om.js');
+const checkoutCli=path.resolve(here,'../../../cli/om.js');
+const inCheckout=await fs.access(checkoutCli).then(()=>true,()=>false);
+const om=process.env.HUASHU_MOTION_CLI||(inCheckout?checkoutCli:path.join(process.env.CODEX_HOME||path.join(os.homedir(),'.codex'),'tools/huashu-motion/cli/om.js'));
 const runtime=path.resolve(path.dirname(om),'..');
 const root=await fs.mkdtemp(path.join(os.tmpdir(),'视频配音回归-'));
+process.env.OM_HOME=path.join(root,'om-home');
 const call=(exe,args,expected=0)=>{
  const r=spawnSync(exe,args,{encoding:'utf8',maxBuffer:32<<20});
  assert.equal(r.status,expected,r.stderr||r.stdout);return r.stdout;

@@ -130,7 +130,9 @@ async function mix(){
 
 async function check(){
  const t=await readTiming();
- const cli=process.env.HUASHU_MOTION_CLI||path.join(os.homedir(),'.codex/tools/huashu-motion/cli/om.js');
+ const checkoutCli=path.resolve(skill,'../../cli/om.js');
+ const inCheckout=await fs.access(checkoutCli).then(()=>true,()=>false);
+ const cli=process.env.HUASHU_MOTION_CLI||(inCheckout?checkoutCli:path.join(process.env.CODEX_HOME||path.join(os.homedir(),'.codex'),'tools/huashu-motion/cli/om.js'));
  const {openFilm}=await import(pathToFileURL(path.join(path.dirname(cli),'lib/capture.js')));
  const film=await openFilm(path.join(root,'index.html'),{video:'seek'});
  const selector=get('captionSelector','[data-narration-caption]'),results=[];

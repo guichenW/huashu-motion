@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { existsSync, mkdirSync, mkdtempSync, readdirSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve, dirname } from 'node:path';
 import { spawnSync } from 'node:child_process';
@@ -38,6 +38,6 @@ test('om look --at: the same path as the render, a full frame and a close-up of 
   assert.equal(r.status, 0, r.stderr);
   const look = join(dir, '.om', 'look');
   const sub = join(look, readdirSync(look)[0]);
-  assert.deepEqual(size(spawnSync('cat', [join(sub, 'frame.png')], { encoding: 'buffer' }).stdout), { w: 320, h: 180 });
+  assert.deepEqual(size(readFileSync(join(sub, 'frame.png'))), { w: 320, h: 180 });
   assert.match(r.stdout, /frame\.png/);
 });

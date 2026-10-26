@@ -29,8 +29,8 @@ export function findChrome(opts) {
   return chromeCandidates(opts).find((c) => existsSync(c.path))?.path || null;
 }
 
-export function chromeVersion(exe) {
-  const r = spawnSync(exe, ['--version'], { encoding: 'utf8', timeout: 10_000 });
+export function chromeVersion(exe, { run = spawnSync } = {}) {
+  const r = run(exe, ['--version'], { encoding: 'utf8', timeout: 10_000 });
   return /(\d+\.\d+\.\d+\.\d+)/.exec(r.stdout || '')?.[1] || null;
 }
 
