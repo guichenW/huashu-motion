@@ -33,6 +33,7 @@
   "height": 1080,
   "headHandleMs": 20,
   "tailHandleMs": 30,
+  "captionTrailingPunctuation": "strip",
   "voiceLufs": -17,
   "voiceTruePeak": -2.5,
   "bedAudio": "assets/sound.wav",
@@ -82,6 +83,16 @@ mix 只合成音频，不渲染视频；只改音量时可复用已确认画面�
 时间轴绑定原录音与文字稿校验值，混音报告绑定母带、旁白和源底音校验值。改了录音/脚本却没有 prepare，或者底音被 render 刷新后没有 mix，会停下提示，避免沿用旧轨。
 
 ## HTML 接入与单层字幕
+
+### 字幕末尾标点
+
+本用户已明确要求后续字幕末尾不加标点。新工程在 narration.json 设置 `"captionTrailingPunctuation": "strip"`：prepare 只清理每条字幕末尾的中英文逗号、句号、问号、感叹号、分号、冒号、顿号和省略号等停顿标点，保留句中标点、数字小数点及成对引号、括号。无配音影片也采用同样的显示规则。
+
+例如，`处理完成，可下载。` 显示为 `处理完成，可下载`，`版本1.0。` 显示为 `版本1.0`，`查看“处理结果。”` 显示为 `查看“处理结果”`。自动换行不另删句中标点。
+
+原始 scriptFile、sentences[].text、录音与句界保持原样；sources/captions.json、字幕用 narration-data.js 和 SRT 使用清理后的文本。生成的时间轴同时保留 text 与 captionText，check 按 captionText 核对显示结果。未设置该选项或设为 `"preserve"` 时维持原行为，避免改变已确认工程；切换排版后重新 prepare 并重建画面，不沿用旧渲染。
+
+### 接入时间轴
 
 prepare 会生成 sources/narration-fragment.html，其中已写入当前 JSON cues、实际时长、两个本地辅助脚本、om-voice 音轨和字幕容器。将其中片段合并进 index.html（脚本先于调用，容器放在影片画幅内）；替换已有 om-voice / om-cues 时保持唯一。每次 prepare 后更新构建器中的片段，避免内嵌 JSON 留在旧版本。
 

@@ -15,6 +15,18 @@ if(!['prepare','mix','check','mux','verify'].includes(command)||!projectArg)thro
 const root=path.resolve(projectArg),rate=48000;
 const cfg=JSON.parse(await fs.readFile(path.join(root,'sources/narration.json'),'utf8'));
 const get=(key,fallback)=>cfg[key]??fallback;
+const captionPolicy=()=>{
+ const policy=get('captionTrailingPunctuation','preserve');
+ if(!['preserve','strip'].includes(policy))throw new Error('captionTrailingPunctuation must be preserve or strip.');
+ return policy;
+};
+const captionText=text=>{
+ if(captionPolicy()==='preserve')return text;
+ // Keep paired closing quotes/brackets and decimal points inside the text.
+ const result=text.trimEnd().replace(/[，。！？；：、,.!?;:…—～~\s]+(?=[”’」』）》】〕〉"')\]]*$)/u,'');
+ if(!result.trim())throw new Error('A caption cannot contain only trailing punctuation.');
+ return result;
+};
 const out=(name)=>{
  const result=path.resolve(root,name),relative=path.relative(root,result);
  if(relative==='..'||relative.startsWith('..'+path.sep)||path.isAbsolute(relative))throw new Error('Generated output must stay inside the project: '+name);
@@ -49,7 +61,7 @@ const ensureSettings=()=>{
  if(!Number.isInteger(cfg.fps)||cfg.fps<=0||!Number.isInteger(cfg.duration*cfg.fps)||cfg.duration<=0)throw new Error('Set an integer fps and a positive duration containing a whole number of frames.');
  if(!Array.isArray(cfg.sentences)||!cfg.sentences.length)throw new Error('Set reviewed sourceStart/sourceEnd/startFrame for each sentence.');
 };
-const alignmentFingerprint=()=>createHash('sha256').update(JSON.stringify({duration:cfg.duration,fps:cfg.fps,sentences:cfg.sentences,head:get('headHandleMs',20),tail:get('tailHandleMs',30),voiceLufs:get('voiceLufs',-17),voicePeak:get('voiceTruePeak',-2.5),highpass:get('highpassHz',65)})).digest('hex');
+const alignmentFingerprint=()=>createHash('sha256').update(JSON.stringify({duration:cfg.duration,fps:cfg.fps,sentences:cfg.sentences,head:get('headHandleMs',20),tail:get('tailHandleMs',30),voiceLufs:get('voiceLufs',-17),voicePeak:get('voiceTruePeak',-2.5),highpass:get('highpassHz',65),...(captionPolicy()==='preserve'?{}:{captionTrailingPunctuation:captionPolicy()})})).digest('hex');
 const mixFingerprint=()=>createHash('sha256').update(JSON.stringify({music:input('bedAudio','assets/sound.wav'),gain:get('bedGainDb',0),ducked:get('bedAlreadyDucked',true),lufs:get('masterLufs',-16),peak:get('masterTruePeak',-3)})).digest('hex');
 const readTiming=async()=>{
  const t=JSON.parse(await fs.readFile(timingFile,'utf8'));
@@ -75,7 +87,7 @@ async function prepare(){
   const clipStart=Math.max(0,s.sourceStart-head),clipEnd=Math.min(sourceDuration,s.sourceEnd+tail);
   const sourceA=Math.round(clipStart*rate),sourceB=Math.round(clipEnd*rate);
   const endFrame=s.startFrame+Math.ceil((sourceB-sourceA)/rate*cfg.fps);
-  return {...s,text:lines[i],clipStart,clipEnd,sourceA,sourceB,endFrame,start:s.startFrame/cfg.fps,end:endFrame/cfg.fps};
+  return {...s,text:lines[i],captionText:captionText(lines[i]),clipStart,clipEnd,sourceA,sourceB,endFrame,start:s.startFrame/cfg.fps,end:endFrame/cfg.fps};
  });
  sentences.forEach((s,i)=>{
   if(s.end>cfg.duration||(i&&s.startFrame<sentences[i-1].endFrame))throw new Error('Target clips overlap or exceed the film at sentence '+(i+1));
@@ -98,16 +110,16 @@ async function prepare(){
  const voiceLevels=normalize(raw,voice,get('voiceLufs',-17),get('voiceTruePeak',-2.5));
  const timing={duration:cfg.duration,fps:cfg.fps,sentences,sourceSha256:await sha(source),scriptSha256:await sha(input('scriptFile','sources/narration.txt')),alignmentFingerprint:alignmentFingerprint(),originalVoice:measure(source),voiceLevels,precision:'Reviewed sentence clip edges; source speed and pitch preserved. Not word-level ASR.'};
  await json(timingFile,timing);
- await json(out('sources/captions.json'),sentences.map(s=>[s.start,s.end,s.text]));
+ await json(out('sources/captions.json'),sentences.map(s=>[s.start,s.end,s.captionText]));
  const cues={duration:cfg.duration,precision:timing.precision,words:sentences.map(s=>({word:s.text,start:s.start,end:s.end}))};
  await json(out('assets/voice.words.json'),cues);
- const data={duration:cfg.duration,fps:cfg.fps,sentences:sentences.map(({text,startFrame,endFrame})=>({text,startFrame,endFrame}))};
+ const data={duration:cfg.duration,fps:cfg.fps,sentences:sentences.map(({captionText:text,startFrame,endFrame})=>({text,startFrame,endFrame}))};
  await fs.writeFile(out('assets/narration-data.js'),'window.NARRATION_SYNC_DATA='+JSON.stringify(data).replaceAll('<','\\u003c')+';\n');
  await fs.copyFile(path.join(skill,'assets/narration-clock.js'),out('assets/narration-clock.js'));
  const fragment='<script src="assets/narration-data.js"></script>\n<script src="assets/narration-clock.js"></script>\n<script type="application/json" id="om-cues">'+JSON.stringify(cues).replaceAll('<','\\u003c')+'</script>\n<audio id="om-voice" src="assets/voice.wav" data-start="0" data-duration="'+cfg.duration+'" data-track-index="9" data-volume="1"></audio>\n<div id="narration-captions"></div>\n';
  await fs.writeFile(out('sources/narration-fragment.html'),fragment);
  await fs.mkdir(out('sources/subtitles'),{recursive:true});
- await fs.writeFile(out('sources/subtitles/narration.srt'),sentences.map((s,i)=>(i+1)+'\r\n'+stamp(s.start)+' --> '+stamp(s.end)+'\r\n'+s.text+'\r\n').join('\r\n'));
+ await fs.writeFile(out('sources/subtitles/narration.srt'),sentences.map((s,i)=>(i+1)+'\r\n'+stamp(s.start)+' --> '+stamp(s.end)+'\r\n'+s.captionText+'\r\n').join('\r\n'));
  return {prepared:true,voice,voiceLevels,sentences:sentences.length,duration:cfg.duration,htmlFragment:out('sources/narration-fragment.html')};
 }
 
@@ -138,7 +150,7 @@ async function check(){
  const selector=get('captionSelector','[data-narration-caption]'),results=[];
  try{
   const layout=await film.evaluate('(()=>{const e=[...document.querySelectorAll('+JSON.stringify(selector)+')];return e.map(el=>{const r=el.getBoundingClientRect();return {left:r.left,right:r.right,top:r.top,bottom:r.bottom,width:r.width,scroll:el.scrollWidth,text:el.textContent}})})()');
-  if(layout.length!==t.sentences.length||layout.some((s,i)=>s.left<0||s.right>film.width||s.top<0||s.bottom>film.height||s.scroll>s.width+1||s.text.trim()!==t.sentences[i].text))throw new Error('Caption count, transcript or safe-area layout does not match the timeline.');
+  if(layout.length!==t.sentences.length||layout.some((s,i)=>s.left<0||s.right>film.width||s.top<0||s.bottom>film.height||s.scroll>s.width+1||s.text.trim()!==(t.sentences[i].captionText??t.sentences[i].text)))throw new Error('Caption count, transcript or safe-area layout does not match the timeline.');
   for(let i=0;i<t.sentences.length;i++){
    const s=t.sentences[i],frames=[s.startFrame-1,s.startFrame,s.startFrame+1,s.endFrame-1,s.endFrame,s.startFrame-.25,s.endFrame-.25];
    for(const frame of frames.filter(f=>f>=0&&f<t.duration*t.fps)){
